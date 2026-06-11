@@ -87,11 +87,14 @@ const gameOverEl    = document.getElementById('game-over');
 const finalScoreEl  = document.getElementById('final-score');
 const startScreenEl = document.getElementById('start-screen');
 const startBtnEl    = document.getElementById('start-btn');
+const pauseMenuEl   = document.getElementById('pause-menu');
+const resumeBtnEl   = document.getElementById('resume-btn');
 
 // --- Player state ---
 const PLAYER_MAX_HP    = 100;
 let playerHp           = PLAYER_MAX_HP;
 let isGameOver         = false;
+let isPaused           = false;
 let gameStarted        = false;   // chưa start thì không chạy gì cả
 
 // --- Damage settings ---
@@ -159,6 +162,31 @@ function triggerGameOver() {
     inputHandler.disableLock();   // Giải phóng pointer lock
 }
 
+function pauseGame() {
+    if (isGameOver || !gameStarted) return;
+    isPaused = true;
+    pauseMenuEl.classList.add('visible');
+}
+
+function resumeGame() {
+    isPaused = false;
+    pauseMenuEl.classList.remove('visible');
+}
+
+// Lắng nghe sự kiện thoát Pointer Lock (thường do nhấn Esc)
+document.addEventListener('pointerlockchange', () => {
+    if (document.pointerLockElement !== sceneManager.renderer.domElement) {
+        if (gameStarted && !isGameOver) {
+            pauseGame();
+        }
+    }
+});
+
+resumeBtnEl.addEventListener('click', () => {
+    inputHandler.enableLock();
+    resumeGame();
+});
+
 // --- Start Screen ---
 function startGame() {
     gameStarted = true;
@@ -166,7 +194,7 @@ function startGame() {
     inputHandler.enableLock();    // Bắt đầu lock chuột
 
     // Spawn enemy ban đầu và bắt đầu vòng lặp
-    for (let i = 0; i < 5; i++) spawnEnemy();
+    for (let i = 0; i < 2; i++) spawnEnemy();
     lastSpawnTime = performance.now() / 1000;
     lastFrameTime = performance.now();
     gameLoop();
@@ -187,10 +215,11 @@ function spawnEnemy() {
 }
 
 let lastSpawnTime = 0;
-const spawnInterval = 1.6;
+const spawnInterval = 3.0;
 
 // Bắn
 window.addEventListener('click', (event) => {
+    if (isPaused || isGameOver || !gameStarted) return;
     const now = performance.now() / 1000;
     if (now - lastAttackTime < attackCooldown) return;
     lastAttackTime = now;
@@ -249,6 +278,12 @@ let lastFrameTime = performance.now();
 
 function gameLoop() {
     if (isGameOver) return; // Dừng loop khi game over
+
+    if (isPaused) {
+        lastFrameTime = performance.now();
+        requestAnimationFrame(gameLoop);
+        return;
+    }
 
     const now = performance.now();
     let delta = Math.min(1 / 30, (now - lastFrameTime) / 1000);

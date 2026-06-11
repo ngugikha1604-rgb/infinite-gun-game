@@ -302,8 +302,8 @@
             transition: opacity 0.07s ease;
         }
 
-        /* ===================== GAME OVER ===================== */
-        #game-over {
+        /* ===================== GAME OVER & PAUSE ===================== */
+        #game-over, #pause-menu {
             display: none;
             position: absolute;
             inset: 0;
@@ -315,7 +315,7 @@
             -webkit-backdrop-filter: blur(10px);
         }
 
-        #game-over.visible {
+        #game-over.visible, #pause-menu.visible {
             display: flex;
             animation: goFadeIn 0.5s ease forwards;
         }
@@ -561,6 +561,16 @@
             <div class="go-score-label">Final Score</div>
             <div class="go-score" id="final-score">0</div>
             <button id="restart-btn" onclick="location.reload()">↺&nbsp; PLAY AGAIN</button>
+        </div>
+    </div>
+
+    <!-- Pause Menu Overlay -->
+    <div id="pause-menu">
+        <div class="go-box">
+            <div class="go-title" style="color: #ffaa00; text-shadow: 0 0 30px rgba(255, 170, 0, 0.7);">GAME PAUSED</div>
+            <div class="go-subtitle">Trò chơi đang tạm dừng</div>
+            <button id="resume-btn" style="background: linear-gradient(135deg, #1a6acc 0%, #0d3f88 100%); box-shadow: 0 4px 20px rgba(30, 100, 220, 0.45); margin-bottom: 10px;">▶&nbsp; TIẾP TỤC</button>
+            <button id="pause-restart-btn" onclick="location.reload()">↺&nbsp; CHƠI LẠI</button>
         </div>
     </div>
 
