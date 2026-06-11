@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Infinity Fight - Three.js</title>
+
+    <!-- Google Fonts: Rajdhani cho feel FPS/military -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600;700&family=Orbitron:wght@700&display=swap" rel="stylesheet">
+
+    <style>
+        /* ===================== RESET & BASE ===================== */
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            overflow: hidden;
+            font-family: 'Rajdhani', sans-serif;
+            background: #000;
+            user-select: none;
+        }
+
+        /* ===================== SCORE BOARD ===================== */
+        #score-board {
+            position: absolute;
+            top: 24px;
+            left: 24px;
+            pointer-events: none;
+            z-index: 100;
+
+            /* Glassmorphism */
+            background: linear-gradient(135deg, rgba(255,255,255,0.07) 0%, rgba(255,255,255,0.03) 100%);
+            border: 1px solid rgba(255,255,255,0.12);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-radius: 12px;
+            padding: 10px 22px 10px 16px;
+
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        #score-board .score-label {
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 13px;
+            font-weight: 600;
+            letter-spacing: 2.5px;
+            text-transform: uppercase;
+            color: rgba(255, 220, 100, 0.75);
+        }
+
+        #score-board .score-value {
+            font-family: 'Orbitron', monospace;
+            font-size: 28px;
+            font-weight: 700;
+            color: #fff;
+            text-shadow: 0 0 12px rgba(255, 220, 100, 0.5), 0 0 30px rgba(255, 180, 50, 0.25);
+            line-height: 1;
+            min-width: 52px;
+            text-align: right;
+            transition: color 0.1s ease;
+        }
+
+        #score-board .score-value.flash {
+            color: #ffe066;
+            text-shadow: 0 0 20px rgba(255, 220, 100, 0.9), 0 0 50px rgba(255, 150, 0, 0.5);
+        }
+
+        /* Divider dọc nhỏ */
+        #score-board .divider {
+            width: 1px;
+            height: 28px;
+            background: rgba(255,255,255,0.15);
+        }
+
+        /* ===================== KILL FEED ===================== */
+        #kill-feed {
+            position: absolute;
+            top: 24px;
+            right: 24px;
+            z-index: 100;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 6px;
+        }
+
+        .kill-msg {
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 15px;
+            font-weight: 700;
+            letter-spacing: 1.5px;
+            color: #ff4d4d;
+            text-transform: uppercase;
+            background: rgba(255, 50, 50, 0.12);
+            border: 1px solid rgba(255, 60, 60, 0.25);
+            border-radius: 6px;
+            padding: 4px 12px;
+            animation: killSlideIn 0.15s ease-out forwards;
+            text-shadow: 0 0 8px rgba(255, 80, 80, 0.6);
+        }
+
+        @keyframes killSlideIn {
+            from { opacity: 0; transform: translateX(20px); }
+            to   { opacity: 1; transform: translateX(0); }
+        }
+
+        /* ===================== CROSSHAIR ===================== */
+        #crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            z-index: 100;
+            width: 32px;
+            height: 32px;
+            transition: transform 0.08s ease;
+        }
+
+        #crosshair.recoil {
+            transform: translate(-50%, calc(-50% - 6px)) scale(1.15);
+        }
+
+        /* 4 lines crosshair via CSS */
+        #crosshair .ch-line {
+            position: absolute;
+            background: rgba(255, 255, 255, 0.92);
+            border-radius: 2px;
+            box-shadow: 0 0 4px rgba(0,0,0,0.8);
+        }
+        /* Top */
+        #crosshair .ch-top    { width: 2px; height: 8px; top: 0px;  left: 50%; transform: translateX(-50%); }
+        /* Bottom */
+        #crosshair .ch-bottom { width: 2px; height: 8px; bottom: 0px; left: 50%; transform: translateX(-50%); }
+        /* Left */
+        #crosshair .ch-left   { height: 2px; width: 8px; left: 0px;  top: 50%; transform: translateY(-50%); }
+        /* Right */
+        #crosshair .ch-right  { height: 2px; width: 8px; right: 0px; top: 50%; transform: translateY(-50%); }
+
+        /* Dot giữa */
+        #crosshair .ch-dot {
+            position: absolute;
+            width: 3px;
+            height: 3px;
+            background: rgba(255,255,255,0.8);
+            border-radius: 50%;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            box-shadow: 0 0 3px rgba(0,0,0,0.8);
+        }
+
+        /* ===================== CONTROLS HINT ===================== */
+        #controls-hint {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            pointer-events: none;
+            z-index: 100;
+
+            display: flex;
+            gap: 16px;
+            align-items: center;
+
+            background: rgba(0,0,0,0.4);
+            border: 1px solid rgba(255,255,255,0.08);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            border-radius: 20px;
+            padding: 8px 20px;
+        }
+
+        .ctrl-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            color: rgba(255,255,255,0.65);
+            font-size: 13px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+
+        .ctrl-key {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 5px;
+            padding: 1px 6px;
+            font-size: 12px;
+            font-family: 'Rajdhani', sans-serif;
+            font-weight: 700;
+            letter-spacing: 1px;
+            color: rgba(255,255,255,0.85);
+            min-width: 22px;
+            text-align: center;
+        }
+
+        .ctrl-sep {
+            width: 1px;
+            height: 16px;
+            background: rgba(255,255,255,0.12);
+        }
+
+        /* ===================== AMMO / WAVE COUNTER (bottom right) ===================== */
+        #hud-bottom-right {
+            position: absolute;
+            bottom: 20px;
+            right: 24px;
+            pointer-events: none;
+            z-index: 100;
+            text-align: right;
+        }
+
+        #enemy-count {
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 13px;
+            font-weight: 600;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: rgba(255, 100, 100, 0.7);
+        }
+
+        #enemy-count span {
+            font-family: 'Orbitron', monospace;
+            font-size: 18px;
+            color: rgba(255, 130, 130, 0.9);
+        }
+
+        /* ===================== HEALTH BAR ===================== */
+        #health-wrapper {
+            position: absolute;
+            bottom: 64px;
+            left: 24px;
+            pointer-events: none;
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+
+            background: linear-gradient(135deg, rgba(255,255,255,0.07) 0%, rgba(255,255,255,0.03) 100%);
+            border: 1px solid rgba(255,255,255,0.12);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-radius: 12px;
+            padding: 8px 16px;
+        }
+
+        #health-wrapper .hp-label {
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 13px;
+            font-weight: 600;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: rgba(255, 120, 120, 0.8);
+        }
+
+        #health-bar-track {
+            width: 130px;
+            height: 8px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 4px;
+            overflow: hidden;
+            border: 1px solid rgba(255,255,255,0.08);
+        }
+
+        #health-bar-fill {
+            height: 100%;
+            width: 100%;
+            background: linear-gradient(90deg, #e63535, #ff6b6b);
+            border-radius: 4px;
+            transition: width 0.2s ease, background 0.3s ease;
+        }
+
+        #health-text {
+            font-family: 'Orbitron', monospace;
+            font-size: 16px;
+            font-weight: 700;
+            color: #ff8888;
+            min-width: 32px;
+            text-align: right;
+            line-height: 1;
+        }
+
+        /* ===================== DAMAGE VIGNETTE ===================== */
+        #damage-vignette {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            z-index: 90;
+            background: radial-gradient(
+                ellipse at center,
+                transparent 30%,
+                rgba(200, 0, 0, 0.55) 100%
+            );
+            opacity: 0;
+            transition: opacity 0.07s ease;
+        }
+
+        /* ===================== GAME OVER ===================== */
+        #game-over {
+            display: none;
+            position: absolute;
+            inset: 0;
+            z-index: 300;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0, 0, 0, 0.72);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+        }
+
+        #game-over.visible {
+            display: flex;
+            animation: goFadeIn 0.5s ease forwards;
+        }
+
+        @keyframes goFadeIn {
+            from { opacity: 0; }
+            to   { opacity: 1; }
+        }
+
+        .go-box {
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+
+            background: linear-gradient(160deg, rgba(255,255,255,0.07) 0%, rgba(255,255,255,0.02) 100%);
+            border: 1px solid rgba(255,255,255,0.12);
+            border-radius: 20px;
+            padding: 48px 64px;
+            backdrop-filter: blur(4px);
+        }
+
+        .go-title {
+            font-family: 'Orbitron', monospace;
+            font-size: 52px;
+            font-weight: 700;
+            color: #ff3333;
+            text-shadow: 0 0 30px rgba(255, 60, 60, 0.7), 0 0 60px rgba(255, 0, 0, 0.3);
+            letter-spacing: 4px;
+            line-height: 1;
+            animation: goGlitch 3s infinite;
+        }
+
+        @keyframes goGlitch {
+            0%, 90%, 100% { text-shadow: 0 0 30px rgba(255,60,60,0.7), 0 0 60px rgba(255,0,0,0.3); }
+            92%  { text-shadow: -3px 0 #0ff, 3px 0 #f0f, 0 0 30px rgba(255,60,60,0.7); }
+            94%  { text-shadow: 3px 0 #0ff, -3px 0 #f0f, 0 0 30px rgba(255,60,60,0.7); }
+        }
+
+        .go-subtitle {
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 18px;
+            font-weight: 600;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            color: rgba(255,255,255,0.5);
+        }
+
+        .go-score {
+            font-family: 'Orbitron', monospace;
+            font-size: 40px;
+            font-weight: 700;
+            color: #fff;
+            text-shadow: 0 0 20px rgba(255,220,100,0.5);
+        }
+
+        .go-score-label {
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 14px;
+            font-weight: 600;
+            letter-spacing: 3px;
+            color: rgba(255,220,100,0.7);
+            text-transform: uppercase;
+            margin-bottom: -10px;
+        }
+
+        #restart-btn {
+            margin-top: 8px;
+            font-family: 'Orbitron', monospace;
+            font-size: 15px;
+            font-weight: 700;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: #fff;
+            background: linear-gradient(135deg, #cc2222 0%, #882222 100%);
+            border: none;
+            border-radius: 10px;
+            padding: 14px 40px;
+            cursor: pointer;
+            transition: transform 0.12s ease, box-shadow 0.12s ease;
+            box-shadow: 0 4px 20px rgba(200, 30, 30, 0.4);
+        }
+
+        #restart-btn:hover, #start-btn:hover {
+            transform: scale(1.06);
+            box-shadow: 0 6px 28px rgba(200, 30, 30, 0.65);
+        }
+
+        #restart-btn:active, #start-btn:active {
+            transform: scale(0.97);
+        }
+
+        /* ===================== START SCREEN ===================== */
+        #start-screen {
+            display: flex;  /* Hiện ngay khi load */
+            position: absolute;
+            inset: 0;
+            z-index: 400;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0, 0, 0, 0.78);
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+        }
+
+        #start-screen.hidden {
+            display: none;
+        }
+
+        .start-title {
+            font-family: 'Orbitron', monospace;
+            font-size: 52px;
+            font-weight: 700;
+            color: #ffffff;
+            text-shadow: 0 0 30px rgba(100, 180, 255, 0.7), 0 0 60px rgba(60, 120, 255, 0.3);
+            letter-spacing: 4px;
+            line-height: 1;
+        }
+
+        .start-sub {
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 16px;
+            font-weight: 600;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            color: rgba(255,255,255,0.45);
+        }
+
+        .start-controls {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            text-align: left;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 10px;
+            padding: 14px 20px;
+            width: 100%;
+        }
+
+        .start-ctrl-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 14px;
+            font-weight: 600;
+            color: rgba(255,255,255,0.6);
+        }
+
+        .start-ctrl-row .ctrl-key {
+            font-size: 11px;
+            padding: 2px 7px;
+        }
+
+        #start-btn {
+            margin-top: 8px;
+            font-family: 'Orbitron', monospace;
+            font-size: 15px;
+            font-weight: 700;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: #fff;
+            background: linear-gradient(135deg, #1a6acc 0%, #0d3f88 100%);
+            border: none;
+            border-radius: 10px;
+            padding: 14px 40px;
+            cursor: pointer;
+            transition: transform 0.12s ease, box-shadow 0.12s ease;
+            box-shadow: 0 4px 20px rgba(30, 100, 220, 0.45);
+        }
+    </style>
+</head>
+<body>
+    <!-- Score Board -->
+    <div id="score-board">
+        <div class="score-label">Score</div>
+        <div class="divider"></div>
+        <div class="score-value" id="score-value">0</div>
+    </div>
+
+    <!-- Kill Feed (top right) -->
+    <div id="kill-feed"></div>
+
+    <!-- Crosshair -->
+    <div id="crosshair">
+        <div class="ch-line ch-top"></div>
+        <div class="ch-line ch-bottom"></div>
+        <div class="ch-line ch-left"></div>
+        <div class="ch-line ch-right"></div>
+        <div class="ch-dot"></div>
+    </div>
+
+    <!-- Controls Hint (bottom center) -->
+    <div id="controls-hint">
+        <div class="ctrl-item">
+            <span class="ctrl-key">W</span>
+            <span class="ctrl-key">A</span>
+            <span class="ctrl-key">S</span>
+            <span class="ctrl-key">D</span>
+            <span>Move</span>
+        </div>
+        <div class="ctrl-sep"></div>
+        <div class="ctrl-item">
+            <span class="ctrl-key">Space</span>
+            <span>Jump</span>
+        </div>
+        <div class="ctrl-sep"></div>
+        <div class="ctrl-item">
+            <!-- Mouse icon -->
+            <svg width="14" height="18" viewBox="0 0 14 18" fill="none" style="opacity:0.7">
+                <rect x="1" y="1" width="12" height="16" rx="6" stroke="rgba(255,255,255,0.8)" stroke-width="1.5"/>
+                <line x1="7" y1="1" x2="7" y2="8" stroke="rgba(255,255,255,0.8)" stroke-width="1.5"/>
+                <circle cx="7" cy="10" r="1.5" fill="rgba(255,100,100,0.9)"/>
+            </svg>
+            <span>Left Click = Shoot</span>
+        </div>
+    </div>
+
+    <!-- Enemy Counter (bottom right) -->
+    <div id="hud-bottom-right">
+        <div id="enemy-count">Enemies &nbsp;<span id="enemy-count-val">0</span></div>
+    </div>
+
+    <!-- Health Bar (bottom left) -->
+    <div id="health-wrapper">
+        <span class="hp-label">HP</span>
+        <div id="health-bar-track">
+            <div id="health-bar-fill"></div>
+        </div>
+        <span id="health-text">100</span>
+    </div>
+
+    <!-- Damage Vignette (full screen flash) -->
+    <div id="damage-vignette"></div>
+
+    <!-- Game Over Overlay -->
+    <div id="game-over">
+        <div class="go-box">
+            <div class="go-title">GAME OVER</div>
+            <div class="go-subtitle">You have been eliminated</div>
+            <div class="go-score-label">Final Score</div>
+            <div class="go-score" id="final-score">0</div>
+            <button id="restart-btn" onclick="location.reload()">↺&nbsp; PLAY AGAIN</button>
+        </div>
+    </div>
+
+    <!-- Start Screen Overlay -->
+    <div id="start-screen">
+        <div class="go-box" style="gap:18px; max-width:420px; width:90%">
+            <div class="start-title">INFINITY<br>FIGHT</div>
+            <div class="start-sub">First Person Survival</div>
+            <div class="start-controls">
+                <div class="start-ctrl-row">
+                    <span class="ctrl-key">W</span><span class="ctrl-key">A</span>
+                    <span class="ctrl-key">S</span><span class="ctrl-key">D</span>
+                    <span>Di chuyển</span>
+                </div>
+                <div class="start-ctrl-row">
+                    <span class="ctrl-key">Space</span>
+                    <span>Nhảy</span>
+                </div>
+                <div class="start-ctrl-row">
+                    <svg width="13" height="17" viewBox="0 0 14 18" fill="none" style="opacity:0.6;flex-shrink:0">
+                        <rect x="1" y="1" width="12" height="16" rx="6" stroke="rgba(255,255,255,0.8)" stroke-width="1.5"/>
+                        <line x1="7" y1="1" x2="7" y2="8" stroke="rgba(255,255,255,0.8)" stroke-width="1.5"/>
+                        <circle cx="7" cy="10" r="1.5" fill="rgba(255,100,100,0.9)"/>
+                    </svg>
+                    <span>Click chuột để bắn</span>
+                </div>
+                <div class="start-ctrl-row" style="color:rgba(255,200,100,0.6)">
+                    <span style="font-size:15px">&#9888;</span>
+                    <span>Tối đa 5 lần bị chạm &rarr; Game Over</span>
+                </div>
+            </div>
+            <button id="start-btn">▶&nbsp; BắT ĐẦU</button>
+        </div>
+    </div>
+
+    <!-- Three.js import map -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.128.0/build/three.module.js"
+            }
+        }
+    </script>
+    <script type="module" src="/main.js"></script>
+</body>
+</html>
