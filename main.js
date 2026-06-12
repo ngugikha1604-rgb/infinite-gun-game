@@ -204,7 +204,8 @@ startBtnEl.addEventListener('click', startGame);
 
 function spawnEnemy() {
     const playerPos = playerController.getPosition();
-    const radius = 12;
+    // Sinh quái trong khoảng 18m - 28m để tránh sinh quá gần người chơi
+    const radius = 18 + Math.random() * 10;
     const angle = Math.random() * Math.PI * 2;
     const x = playerPos.x + Math.cos(angle) * radius;
     const z = playerPos.z + Math.sin(angle) * radius;
