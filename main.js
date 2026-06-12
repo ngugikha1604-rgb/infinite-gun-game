@@ -6,6 +6,8 @@ import { TerrainGenerator } from './src/world/TerrainGenerator.js';
 import { VegetationGenerator } from './src/world/VegetationGenerator.js';
 import { WorldChunk } from './src/world/WorldChunk.js';
 import { Enemy } from './src/entities/Enemy.js';
+import { FastEnemy } from './src/entities/FastEnemy.js';
+import { TankEnemy } from './src/entities/TankEnemy.js';
 
 // Khởi tạo core
 const sceneManager = new SceneManager();
@@ -204,14 +206,19 @@ startBtnEl.addEventListener('click', startGame);
 
 function spawnEnemy() {
     const playerPos = playerController.getPosition();
-    // Sinh quái trong khoảng 18m - 28m để tránh sinh quá gần người chơi
     const radius = 18 + Math.random() * 10;
     const angle = Math.random() * Math.PI * 2;
     const x = playerPos.x + Math.cos(angle) * radius;
     const z = playerPos.z + Math.sin(angle) * radius;
-    // Lấy độ cao mặt đất tại vị trí sinh
     const groundY = terrainGen.getHeight(x, z) + 1.2;
-    const enemy = new Enemy(sceneManager.scene, new THREE.Vector3(x, groundY, z), 2.0);
+
+    // Chọn ngẫu nhiên loại enemy: 0 = Fast, 1 = Tank
+    let enemy;
+    if (Math.random() < 0.5) {
+        enemy = new FastEnemy(sceneManager.scene, new THREE.Vector3(x, groundY, z));
+    } else {
+        enemy = new TankEnemy(sceneManager.scene, new THREE.Vector3(x, groundY, z));
+    }
     enemies.push(enemy);
 }
 
