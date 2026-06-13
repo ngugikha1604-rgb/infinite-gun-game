@@ -9,6 +9,7 @@ import { Enemy } from './src/entities/Enemy.js';
 import { FastEnemy } from './src/entities/FastEnemy.js';
 import { TankEnemy } from './src/entities/TankEnemy.js';
 import { WeaponManager } from './src/weapons/WeaponManager.js';
+import { SafeZone } from './src/world/SafeZone.js';
 
 // Khởi tạo core
 const sceneManager = new SceneManager();
@@ -78,11 +79,15 @@ function updateChunks(playerPos) {
     }
 }
 
-// Enemies
 let enemies = [];
 let droppedItems = []; // các vật phẩm rơi trên đất
 let score = 0;
 let lastAttackTime = 0;
+let currentSafeZone = null;      // safe zone hiện tại
+let nextSafeZoneTime = 0;        // thời điểm tiếp theo có thể spawn safe zone
+const SAFE_ZONE_SPAWN_DELAY = 45;   // 45 giây giữa các lần
+const SAFE_ZONE_DURATION = 25;      // tồn tại 25 giây
+const SAFE_ZONE_RADIUS = 6;         // bán kính 6 mét
 const attackCooldown = 0.3;
 const raycaster = new THREE.Raycaster();
 
@@ -200,6 +205,7 @@ function startGame() {
     for (let i = 0; i < 2; i++) spawnEnemy();
     lastSpawnTime = performance.now() / 1000;
     lastFrameTime = performance.now();
+    nextSafeZoneTime = performance.now() / 1000 + SAFE_ZONE_SPAWN_DELAY;
     gameLoop();
 }
 
@@ -207,10 +213,29 @@ startBtnEl.addEventListener('click', startGame);
 
 function spawnEnemy() {
     const playerPos = playerController.getPosition();
-    const radius = 18 + Math.random() * 10;
-    const angle = Math.random() * Math.PI * 2;
-    const x = playerPos.x + Math.cos(angle) * radius;
-    const z = playerPos.z + Math.sin(angle) * radius;
+    let x, z;
+    let safe = true;
+    let attempts = 0;
+    
+    // Thử tìm vị trí spawn không nằm trong safe zone
+    do {
+        const radius = 18 + Math.random() * 10;
+        const angle = Math.random() * Math.PI * 2;
+        x = playerPos.x + Math.cos(angle) * radius;
+        z = playerPos.z + Math.sin(angle) * radius;
+        
+        safe = true;
+        // Kiểm tra không nằm trong safe zone
+        if (currentSafeZone) {
+            const distToSafeZone = Math.hypot(x - currentSafeZone.position.x, z - currentSafeZone.position.z);
+            if (distToSafeZone < SAFE_ZONE_RADIUS + 2) { // cách safe zone ít nhất 2m
+                safe = false;
+            }
+        }
+        attempts++;
+        if (attempts > 20) break; // tránh vòng lặp vô hạn
+    } while (!safe);
+    
     const groundY = terrainGen.getHeight(x, z) + 1.2;
 
     let enemy;
@@ -220,6 +245,36 @@ function spawnEnemy() {
         enemy = new TankEnemy(sceneManager.scene, new THREE.Vector3(x, groundY, z));
     }
     enemies.push(enemy);
+}
+
+// Tạo safe zone ngẫu nhiên
+function spawnSafeZone() {
+    if (currentSafeZone) return; // đã có rồi
+    
+    // Tìm vị trí ngẫu nhiên cách player ít nhất 20m
+    const playerPos = playerController.getPosition();
+    let x, z;
+    do {
+        const angle = Math.random() * Math.PI * 2;
+        const distance = 25 + Math.random() * 15; // 25-40m cách player
+        x = playerPos.x + Math.cos(angle) * distance;
+        z = playerPos.z + Math.sin(angle) * distance;
+    } while (Math.hypot(x - playerPos.x, z - playerPos.z) < 20);
+    
+    const groundY = terrainGen.getHeight(x, z) + 1.2;
+    
+    currentSafeZone = new SafeZone(
+        sceneManager.scene,
+        new THREE.Vector3(x, groundY, z),
+        SAFE_ZONE_RADIUS,
+        SAFE_ZONE_DURATION,
+        () => {
+            // Callback khi safe zone biến mất
+            currentSafeZone = null;
+            // Đặt thời gian spawn lần tiếp theo
+            nextSafeZoneTime = performance.now() / 1000 + SAFE_ZONE_SPAWN_DELAY;
+        }
+    );
 }
 
 let lastSpawnTime = 0;
@@ -324,10 +379,40 @@ function gameLoop() {
     
     playerController.update(delta);
     weaponManager.update(delta);
-    updateChunks(playerController.getPosition());
-    
-    const playerPos = playerController.getPosition();
 
+    // Cập nhật safe zone (nếu có)
+    if (currentSafeZone) {
+        currentSafeZone.update(delta);
+        
+        for (let i = 0; i < enemies.length; i++) {
+            if (!currentSafeZone) break; // thoát nếu safe zone biến mất giữa chừng
+            const enemyPos = enemies[i].mesh.position;
+            const push = currentSafeZone.pushEnemyOut(enemyPos);
+            if (push) {
+                enemies[i].mesh.position.x += push.x * delta;
+                enemies[i].mesh.position.z += push.z * delta;
+            }
+        }
+    }
+    
+    const nowSec = now / 1000;
+    const playerPos = playerController.getPosition();
+    
+    // Spawn enemy (chỉ khi không có safe zone hoặc player không ở trong safe zone)
+    const canSpawn = !currentSafeZone || !currentSafeZone.containsPoint(playerPos);
+    if (canSpawn && nowSec - lastSpawnTime > spawnInterval && enemies.length < 25) {
+        spawnEnemy();
+        lastSpawnTime = nowSec;
+    }
+
+    // Spawn safe zone định kỳ
+    if (!currentSafeZone && gameStarted && nowSec > nextSafeZoneTime) {
+        spawnSafeZone();
+    }
+
+    updateChunks(playerPos);
+    
+    // Cập nhật enemy, sát thương, v.v.
     for (let i = 0; i < enemies.length; i++) {
         enemies[i].update(delta, playerPos);
 
@@ -346,7 +431,7 @@ function gameLoop() {
         }
     }
 
-    // Tự động nhặt vật phẩm khi đến gần (không cần ấn F)
+    // Tự động nhặt vật phẩm
     for (let i = 0; i < droppedItems.length; i++) {
         const item = droppedItems[i];
         const dist = playerPos.distanceTo(item.position);
@@ -358,12 +443,6 @@ function gameLoop() {
             droppedItems.splice(i, 1);
             i--;
         }
-    }
-    
-    const nowSec = now / 1000;
-    if (nowSec - lastSpawnTime > spawnInterval && enemies.length < 25) {
-        spawnEnemy();
-        lastSpawnTime = nowSec;
     }
     
     sceneManager.renderer.render(sceneManager.scene, sceneManager.camera);
