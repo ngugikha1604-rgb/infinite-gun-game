@@ -8,7 +8,8 @@ export const PISTOL = new Weapon({
     magazineSize: 12,
     reserveAmmo: 48,
     reloadTime: 1.2,
-    color: 0xffaa44
+    color: 0xffaa44,
+    recoil: 0.045   // giật nhẹ
 });
 
 // Súng trường
@@ -19,5 +20,6 @@ export const RIFLE = new Weapon({
     magazineSize: 30,
     reserveAmmo: 90,
     reloadTime: 2.0,
-    color: 0x44aaff
+    color: 0x44aaff,
+    recoil: 0.07    // giật mạnh hơn
 });

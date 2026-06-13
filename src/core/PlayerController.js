@@ -8,7 +8,6 @@ export class PlayerController {
         this.terrainGen = terrainGen;
         
         this.playerGroup = new THREE.Group();
-        // Đặt vị trí ban đầu (y sẽ được cập nhật ngay sau)
         this.playerGroup.position.set(initialPosition.x, 0, initialPosition.z);
         this.scene.add(this.playerGroup);
         this.playerGroup.add(this.camera);
@@ -41,32 +40,34 @@ export class PlayerController {
         this.recoilAmount = 0;
         this.RECOIL_RECOVERY_RATE = 0.92;
 
-        // Tạo các mô hình súng
-        // Súng lục (pistol) - màu xám bạc, nhỏ
+        // ADS (ngắm)
+        this.isAiming = false;
+        this.normalFov = 75;
+        this.aimFov = 45;
+        this.normalSpeed = this.MAX_SPEED;
+        this.aimSpeed = this.MAX_SPEED * 0.65;
+        this.aimRecoilFactor = 0.6;
+
+        // Tạo mô hình súng
         const pistolGeo = new THREE.BoxGeometry(0.1, 0.15, 0.5);
         const pistolMat = new THREE.MeshStandardMaterial({ color: 0xccccdd, metalness: 0.7, roughness: 0.3 });
         this.pistolMesh = new THREE.Mesh(pistolGeo, pistolMat);
         this.pistolMesh.position.set(0.2, -0.2, -0.4);
         this.pistolMesh.castShadow = true;
 
-        // Súng trường (rifle) - màu đen, dài hơn
         const rifleGeo = new THREE.BoxGeometry(0.12, 0.2, 0.8);
         const rifleMat = new THREE.MeshStandardMaterial({ color: 0x222222, metalness: 0.8, roughness: 0.2 });
         this.rifleMesh = new THREE.Mesh(rifleGeo, rifleMat);
         this.rifleMesh.position.set(0.25, -0.2, -0.6);
         this.rifleMesh.castShadow = true;
 
-        // Thêm vào camera
         this.camera.add(this.pistolMesh);
         this.camera.add(this.rifleMesh);
-
-        // Ẩn rifle ban đầu
         this.rifleMesh.visible = false;
         this.pistolMesh.visible = true;
+        this.currentGunMesh = this.pistolMesh;
 
-        this.currentGunMesh = this.pistolMesh; // để tham chiếu nếu cần
-
-        // Có thể thêm hiệu ứng tia chớp (Muzzle Flash) dạng PointLight ẩn đi
+        // Muzzle flash
         this.muzzleFlash = new THREE.PointLight(0xffaa00, 0, 5);
         this.muzzleFlash.position.set(0.2, -0.15, -0.8);
         this.camera.add(this.muzzleFlash);
@@ -101,10 +102,14 @@ export class PlayerController {
         if (this.input.isKeyPressed('KeyD')) move.x += 1;
         if (move.length() > 0) move.normalize();
         
+        // Tính hướng di chuyển mong muốn
         let desiredDirection = new THREE.Vector3(0, 0, 0);
         desiredDirection.addScaledVector(forward, move.z * -1);
         desiredDirection.addScaledVector(right, move.x);
-        desiredDirection.multiplyScalar(this.MAX_SPEED);
+        
+        // Điều chỉnh tốc độ theo trạng thái ngắm
+        let currentMaxSpeed = this.isAiming ? this.aimSpeed : this.normalSpeed;
+        desiredDirection.multiplyScalar(currentMaxSpeed);
         
         const isMoving = (move.length() > 0);
         const accel = isMoving ? this.ACCELERATION : this.DECELERATION;
@@ -116,11 +121,8 @@ export class PlayerController {
         let deltaPos = this.currentVelocity.clone().multiplyScalar(deltaTime);
         let newPos = this.playerGroup.position.clone().add(deltaPos);
         
-        // --- Lấy độ cao mặt đất tại vị trí mới ---
-        // getHeight trả về giá trị raw (đã cộng offset 1.2 trong generateChunk, nên ở đây cộng thêm 1.2)
+        // Độ cao mặt đất
         const groundHeight = this.terrainGen.getHeight(newPos.x, newPos.z) + 1.2;
-        
-        // --- Xác định trạng thái chạm đất hiện tại ---
         const currentGround = this.terrainGen.getHeight(this.playerGroup.position.x, this.playerGroup.position.z) + 1.2;
         const epsilon = 0.1;
         this.isGrounded = (Math.abs(this.playerGroup.position.y - currentGround) < epsilon);
@@ -131,18 +133,16 @@ export class PlayerController {
             this.isGrounded = false;
         }
         
-        // Cập nhật vận tốc dọc và vị trí y
+        // Cập nhật vận tốc dọc
         if (!this.isGrounded) {
             this.velocityY -= this.GRAVITY * deltaTime;
             newPos.y = this.playerGroup.position.y + this.velocityY * deltaTime;
-            // Không cho rơi xuyên đất
             if (newPos.y <= groundHeight) {
                 newPos.y = groundHeight;
                 this.velocityY = 0;
                 this.isGrounded = true;
             }
         } else {
-            // Bám sát mặt đất
             newPos.y = groundHeight;
             this.velocityY = 0;
         }
@@ -164,10 +164,19 @@ export class PlayerController {
         targetLean = Math.max(-this.LEAN_MAX, Math.min(this.LEAN_MAX, targetLean));
         this.leanAngle += (targetLean - this.leanAngle) * Math.min(1.0, this.LEAN_SPEED * deltaTime);
         this.camera.rotation.z = this.leanAngle;
+        
+        // FOV theo ADS
+        const targetFov = this.isAiming ? this.aimFov : this.normalFov;
+        if (this.camera.fov !== targetFov) {
+            this.camera.fov = targetFov;
+            this.camera.updateProjectionMatrix();
+        }
     }
     
     addRecoil(amount) {
-        this.recoilAmount += amount;
+        let finalAmount = amount;
+        if (this.isAiming) finalAmount *= this.aimRecoilFactor;
+        this.recoilAmount += finalAmount;
         if (this.recoilAmount > 0.35) this.recoilAmount = 0.35;
     }
     
@@ -185,5 +194,32 @@ export class PlayerController {
             this.rifleMesh.visible = true;
             this.currentGunMesh = this.rifleMesh;
         }
+        // Reset trạng thái ngắm khi chuyển súng
+        this.setAiming(false);
+    }
+    
+    setAiming(aiming) {
+        console.log('PlayerController.setAiming called with:', aiming);
+        this.isAiming = aiming;
+        const targetFov = this.isAiming ? this.aimFov : this.normalFov;
+        console.log('Setting FOV to:', targetFov);
+        this.camera.fov = targetFov;
+        this.camera.updateProjectionMatrix();
+
+        // Điều chỉnh vị trí súng
+        if (this.currentGunMesh === this.pistolMesh) {
+            if (aiming) {
+                this.pistolMesh.position.set(0.0, -0.1, -0.2);
+            } else {
+                this.pistolMesh.position.set(0.2, -0.2, -0.4);
+            }
+        } else if (this.currentGunMesh === this.rifleMesh) {
+            if (aiming) {
+                this.rifleMesh.position.set(0.05, -0.1, -0.3);
+            } else {
+                this.rifleMesh.position.set(0.25, -0.2, -0.6);
+            }
+        }
+        console.log('Gun position after ADS:', this.currentGunMesh.position);
     }
 }

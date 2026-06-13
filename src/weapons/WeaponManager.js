@@ -91,7 +91,11 @@ export class WeaponManager {
         
         this.updateAmmoDisplay(this.currentAmmo, weapon.reserveAmmo);
         
-        return { damage: weapon.damage, weaponName: weaponName };
+        return { 
+            damage: weapon.damage, 
+            weaponName: weaponName,
+            recoil: weapon.recoil 
+        };
     }
     
     // Reload
