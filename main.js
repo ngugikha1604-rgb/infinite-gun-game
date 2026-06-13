@@ -8,6 +8,7 @@ import { WorldChunk } from './src/world/WorldChunk.js';
 import { Enemy } from './src/entities/Enemy.js';
 import { FastEnemy } from './src/entities/FastEnemy.js';
 import { TankEnemy } from './src/entities/TankEnemy.js';
+import { WeaponManager } from './src/weapons/WeaponManager.js';
 
 // Khởi tạo core
 const sceneManager = new SceneManager();
@@ -17,6 +18,10 @@ const inputHandler = new InputHandler(sceneManager.renderer.domElement);
 const terrainGen = new TerrainGenerator('my_infinite_seed');
 const vegGen = new VegetationGenerator(sceneManager.scene, terrainGen);
 
+// Lấy element HUD đạn
+const ammoHudEl = document.getElementById('ammo-hud');
+
+// Tạo playerController trước
 const playerController = new PlayerController(
     sceneManager.scene,
     sceneManager.camera,
@@ -24,6 +29,9 @@ const playerController = new PlayerController(
     terrainGen,
     { x: 0, z: 0 }
 );
+
+// Tạo WeaponManager (sau khi playerController đã tồn tại)
+const weaponManager = new WeaponManager(playerController, ammoHudEl);
 
 // Quản lý chunk
 const chunks = new Map();
@@ -72,6 +80,7 @@ function updateChunks(playerPos) {
 
 // Enemies
 let enemies = [];
+let droppedItems = []; // các vật phẩm rơi trên đất
 let score = 0;
 let lastAttackTime = 0;
 const attackCooldown = 0.3;
@@ -80,7 +89,6 @@ const raycaster = new THREE.Raycaster();
 // --- HUD helpers ---
 const scoreValueEl  = document.getElementById('score-value');
 const killFeedEl    = document.getElementById('kill-feed');
-const enemyCountEl  = document.getElementById('enemy-count-val');
 const crosshairEl   = document.getElementById('crosshair');
 const healthFillEl  = document.getElementById('health-bar-fill');
 const healthTextEl  = document.getElementById('health-text');
@@ -97,13 +105,12 @@ const PLAYER_MAX_HP    = 100;
 let playerHp           = PLAYER_MAX_HP;
 let isGameOver         = false;
 let isPaused           = false;
-let gameStarted        = false;   // chưa start thì không chạy gì cả
+let gameStarted        = false;
 
 // --- Damage settings ---
 const ENEMY_DAMAGE_AMOUNT   = 20;
 const ENEMY_DAMAGE_COOLDOWN = 0.9;
 const ENEMY_MELEE_RANGE     = 1.4;
-
 
 function showKillFeed() {
     const msg = document.createElement('div');
@@ -127,12 +134,10 @@ function flashCrosshair() {
     setTimeout(() => crosshairEl.classList.remove('recoil'), 120);
 }
 
-// Cập nhật thanh máu player
 function updateHealthHUD() {
     const ratio = Math.max(0, playerHp / PLAYER_MAX_HP);
     healthFillEl.style.width = (ratio * 100) + '%';
     healthTextEl.textContent = Math.ceil(playerHp);
-    // Đổi màu: xanh lá → vàng → đỏ
     if (ratio > 0.5) {
         healthFillEl.style.background = 'linear-gradient(90deg, #22cc44, #44ff88)';
         healthTextEl.style.color = '#88ffaa';
@@ -145,7 +150,6 @@ function updateHealthHUD() {
     }
 }
 
-// Hiệu ứng vignette đỏ khi bị đánh
 let _vignetteTimer = null;
 function flashDamageVignette() {
     damageVigEl.style.opacity = '1';
@@ -156,12 +160,11 @@ function flashDamageVignette() {
     }, 120);
 }
 
-// Hiển thị Game Over + giải phóng chuột
 function triggerGameOver() {
     isGameOver = true;
     finalScoreEl.textContent = score;
     gameOverEl.classList.add('visible');
-    inputHandler.disableLock();   // Giải phóng pointer lock
+    inputHandler.disableLock();
 }
 
 function pauseGame() {
@@ -175,7 +178,6 @@ function resumeGame() {
     pauseMenuEl.classList.remove('visible');
 }
 
-// Lắng nghe sự kiện thoát Pointer Lock (thường do nhấn Esc)
 document.addEventListener('pointerlockchange', () => {
     if (document.pointerLockElement !== sceneManager.renderer.domElement) {
         if (gameStarted && !isGameOver) {
@@ -193,9 +195,8 @@ resumeBtnEl.addEventListener('click', () => {
 function startGame() {
     gameStarted = true;
     startScreenEl.classList.add('hidden');
-    inputHandler.enableLock();    // Bắt đầu lock chuột
+    inputHandler.enableLock();
 
-    // Spawn enemy ban đầu và bắt đầu vòng lặp
     for (let i = 0; i < 2; i++) spawnEnemy();
     lastSpawnTime = performance.now() / 1000;
     lastFrameTime = performance.now();
@@ -212,7 +213,6 @@ function spawnEnemy() {
     const z = playerPos.z + Math.sin(angle) * radius;
     const groundY = terrainGen.getHeight(x, z) + 1.2;
 
-    // Chọn ngẫu nhiên loại enemy: 0 = Fast, 1 = Tank
     let enemy;
     if (Math.random() < 0.5) {
         enemy = new FastEnemy(sceneManager.scene, new THREE.Vector3(x, groundY, z));
@@ -225,18 +225,43 @@ function spawnEnemy() {
 let lastSpawnTime = 0;
 const spawnInterval = 3.0;
 
+function handleEnemyDrop(enemy, position) {
+    // Rơi đạn (tự động cộng vào đạn dự trữ)
+    const ammoAmount = Math.floor(5 + Math.random() * 10);
+    weaponManager.addReserveAmmo(ammoAmount);
+    
+    // Rơi súng (tỷ lệ: 10% pistol, 5% rifle)
+    const rand = Math.random() * 100;
+    if (rand < 10) {
+        const dropGeometry = new THREE.SphereGeometry(0.2, 8, 8);
+        const dropMaterial = new THREE.MeshStandardMaterial({ color: 0xffaa44, emissive: 0x442200 });
+        const dropItem = new THREE.Mesh(dropGeometry, dropMaterial);
+        dropItem.position.copy(position);
+        dropItem.userData = { type: 'weapon', weaponName: 'pistol' };
+        sceneManager.scene.add(dropItem);
+        droppedItems.push(dropItem);
+    } else if (rand < 15) {
+        const dropGeometry = new THREE.SphereGeometry(0.2, 8, 8);
+        const dropMaterial = new THREE.MeshStandardMaterial({ color: 0x44aaff, emissive: 0x004466 });
+        const dropItem = new THREE.Mesh(dropGeometry, dropMaterial);
+        dropItem.position.copy(position);
+        dropItem.userData = { type: 'weapon', weaponName: 'rifle' };
+        sceneManager.scene.add(dropItem);
+        droppedItems.push(dropItem);
+    }
+}
+
 // Bắn
 window.addEventListener('click', (event) => {
     if (isPaused || isGameOver || !gameStarted) return;
-    const now = performance.now() / 1000;
-    if (now - lastAttackTime < attackCooldown) return;
-    lastAttackTime = now;
+    
+    const shootResult = weaponManager.shoot();
+    if (!shootResult) return;
     
     playerController.addRecoil(0.045);
-
-    // Bật chớp lửa
     playerController.muzzleFlash.intensity = 5;
     setTimeout(() => { playerController.muzzleFlash.intensity = 0; }, 50);
+    flashCrosshair();
     
     sceneManager.camera.updateMatrixWorld();
     raycaster.setFromCamera(new THREE.Vector2(0, 0), sceneManager.camera);
@@ -267,8 +292,9 @@ window.addEventListener('click', (event) => {
     if (hit) {
         const index = enemies.findIndex(e => e.mesh === hit);
         if (index !== -1) {
-            const isDead = enemies[index].takeDamage(1);
+            const isDead = enemies[index].takeDamage(shootResult.damage);
             if (isDead) {
+                handleEnemyDrop(enemies[index], enemies[index].mesh.position);
                 enemies[index].dispose();
                 enemies.splice(index, 1);
                 score++;
@@ -278,14 +304,13 @@ window.addEventListener('click', (event) => {
             }
         }
     }
-    flashCrosshair();
 });
 
 // Game loop
 let lastFrameTime = performance.now();
 
 function gameLoop() {
-    if (isGameOver) return; // Dừng loop khi game over
+    if (isGameOver) return;
 
     if (isPaused) {
         lastFrameTime = performance.now();
@@ -298,6 +323,7 @@ function gameLoop() {
     lastFrameTime = now;
     
     playerController.update(delta);
+    weaponManager.update(delta);
     updateChunks(playerController.getPosition());
     
     const playerPos = playerController.getPosition();
@@ -305,7 +331,6 @@ function gameLoop() {
     for (let i = 0; i < enemies.length; i++) {
         enemies[i].update(delta, playerPos);
 
-        // --- Melee damage: enemy chạm vào player ---
         const dx = playerPos.x - enemies[i].mesh.position.x;
         const dz = playerPos.z - enemies[i].mesh.position.z;
         const dist2D = Math.sqrt(dx * dx + dz * dz);
@@ -320,19 +345,46 @@ function gameLoop() {
             }
         }
     }
+
+    // Tự động nhặt vật phẩm khi đến gần (không cần ấn F)
+    for (let i = 0; i < droppedItems.length; i++) {
+        const item = droppedItems[i];
+        const dist = playerPos.distanceTo(item.position);
+        if (dist < 1.5) {
+            weaponManager.addWeapon(item.userData.weaponName);
+            sceneManager.scene.remove(item);
+            item.geometry.dispose();
+            item.material.dispose();
+            droppedItems.splice(i, 1);
+            i--;
+        }
+    }
     
     const nowSec = now / 1000;
     if (nowSec - lastSpawnTime > spawnInterval && enemies.length < 25) {
         spawnEnemy();
         lastSpawnTime = nowSec;
     }
-
-    // Cập nhật enemy counter trên HUD
-    if (enemyCountEl) enemyCountEl.textContent = enemies.length;
     
     sceneManager.renderer.render(sceneManager.scene, sceneManager.camera);
     requestAnimationFrame(gameLoop);
 }
 
-// Game bắt đầu khi người dùng nhấn nút START (xem hàm startGame() bên trên)
+// Chuyển súng bằng phím số, reload bằng R
+window.addEventListener('keydown', (e) => {
+    if (!gameStarted || isPaused || isGameOver) return;
+    
+    if (e.code === 'Digit1') {
+        if (weaponManager.inventory.length >= 1) {
+            weaponManager.switchToWeapon(0);
+        }
+    } else if (e.code === 'Digit2') {
+        if (weaponManager.inventory.length >= 2) {
+            weaponManager.switchToWeapon(1);
+        }
+    } else if (e.code === 'KeyR') {
+        weaponManager.startReload();
+    }
+});
+
 window.addEventListener('resize', () => sceneManager.onWindowResize());

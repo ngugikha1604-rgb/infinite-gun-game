@@ -41,18 +41,30 @@ export class PlayerController {
         this.recoilAmount = 0;
         this.RECOIL_RECOVERY_RATE = 0.92;
 
-        // Thêm súng vào Camera
-        const gunGeometry = new THREE.BoxGeometry(0.1, 0.15, 0.5);
-        const gunMaterial = new THREE.MeshStandardMaterial({ 
-            color: 0x222222, 
-            metalness: 0.8, 
-            roughness: 0.2 
-        });
-        this.gunMesh = new THREE.Mesh(gunGeometry, gunMaterial);
-        // Đặt súng ở góc dưới bên phải màn hình
-        this.gunMesh.position.set(0.2, -0.2, -0.4);
-        this.gunMesh.castShadow = true;
-        this.camera.add(this.gunMesh);
+        // Tạo các mô hình súng
+        // Súng lục (pistol) - màu xám bạc, nhỏ
+        const pistolGeo = new THREE.BoxGeometry(0.1, 0.15, 0.5);
+        const pistolMat = new THREE.MeshStandardMaterial({ color: 0xccccdd, metalness: 0.7, roughness: 0.3 });
+        this.pistolMesh = new THREE.Mesh(pistolGeo, pistolMat);
+        this.pistolMesh.position.set(0.2, -0.2, -0.4);
+        this.pistolMesh.castShadow = true;
+
+        // Súng trường (rifle) - màu đen, dài hơn
+        const rifleGeo = new THREE.BoxGeometry(0.12, 0.2, 0.8);
+        const rifleMat = new THREE.MeshStandardMaterial({ color: 0x222222, metalness: 0.8, roughness: 0.2 });
+        this.rifleMesh = new THREE.Mesh(rifleGeo, rifleMat);
+        this.rifleMesh.position.set(0.25, -0.2, -0.6);
+        this.rifleMesh.castShadow = true;
+
+        // Thêm vào camera
+        this.camera.add(this.pistolMesh);
+        this.camera.add(this.rifleMesh);
+
+        // Ẩn rifle ban đầu
+        this.rifleMesh.visible = false;
+        this.pistolMesh.visible = true;
+
+        this.currentGunMesh = this.pistolMesh; // để tham chiếu nếu cần
 
         // Có thể thêm hiệu ứng tia chớp (Muzzle Flash) dạng PointLight ẩn đi
         this.muzzleFlash = new THREE.PointLight(0xffaa00, 0, 5);
@@ -161,5 +173,17 @@ export class PlayerController {
     
     getPosition() {
         return this.playerGroup.position;
+    }
+    
+    switchWeapon(weaponType) {
+        if (weaponType === 'pistol') {
+            this.pistolMesh.visible = true;
+            this.rifleMesh.visible = false;
+            this.currentGunMesh = this.pistolMesh;
+        } else if (weaponType === 'rifle') {
+            this.pistolMesh.visible = false;
+            this.rifleMesh.visible = true;
+            this.currentGunMesh = this.rifleMesh;
+        }
     }
 }
