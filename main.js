@@ -84,7 +84,7 @@ let enemies = [];
 let droppedItems = [];
 let score = 0;
 let coin = 0;
-let isShopOpen = false;          // <-- THÊM BIẾN CỜ
+let isShopOpen = false;
 const coinHudEl = document.getElementById('coin-hud');
 let lastAttackTime = 0;
 let currentSafeZone = null;
@@ -95,6 +95,16 @@ const SAFE_ZONE_DURATION = 25;
 const SAFE_ZONE_RADIUS = 6;
 const attackCooldown = 0.3;
 const raycaster = new THREE.Raycaster();
+
+// Wave system
+let currentWave = 1;
+let waveActive = true;
+let waveCooldown = 0;
+let enemiesToSpawn = 0;
+let waveSpawnTimer = 0;
+const WAVE_SPAWN_INTERVAL = 0.8;
+const WAVE_COOLDOWN_DURATION = 3;
+const WAVE_REWARD_BASE = 50;
 
 // HUD elements
 const scoreValueEl = document.getElementById('score-value');
@@ -109,6 +119,7 @@ const startScreenEl = document.getElementById('start-screen');
 const startBtnEl = document.getElementById('start-btn');
 const pauseMenuEl = document.getElementById('pause-menu');
 const resumeBtnEl = document.getElementById('resume-btn');
+const waveDisplayEl = document.getElementById('wave-display');
 
 // Player stats
 const PLAYER_MAX_HP = 100;
@@ -241,13 +252,72 @@ function startGame() {
     gameStarted = true;
     startScreenEl.classList.add('hidden');
     inputHandler.enableLock();
-    for (let i = 0; i < 2; i++) spawnEnemy();
-    lastSpawnTime = performance.now() / 1000;
+
+    // Khởi tạo wave
+    currentWave = 1;
+    waveActive = true;
+    waveCooldown = 0;
+    enemiesToSpawn = calculateEnemiesToSpawn(currentWave);
+    updateWaveDisplay();
+
+    // Xóa enemy cũ
+    enemies.forEach(e => e.dispose());
+    enemies = [];
+
+    // Bắt đầu spawn wave
+    waveSpawnTimer = 0;
+
     lastFrameTime = performance.now();
     nextSafeZoneTime = performance.now() / 1000 + SAFE_ZONE_SPAWN_DELAY;
     gameLoop();
 }
 startBtnEl.addEventListener('click', startGame);
+
+// Calculator số enemy cần spawn theo wave
+function calculateEnemiesToSpawn(wave) {
+    return 3 + Math.floor(wave / 2);
+}
+
+// Cập nhật hiển thị wave
+function updateWaveDisplay() {
+    if (waveDisplayEl) waveDisplayEl.textContent = `Wave ${currentWave}`;
+}
+
+// Kết thúc wave
+function finishWave() {
+    const reward = WAVE_REWARD_BASE + currentWave * 10;
+    coin += reward;
+    coinHudEl.textContent = `Coin: ${coin}`;
+    showWaveMessage(`Wave ${currentWave} cleared! +${reward} coin`);
+    waveActive = false;
+    waveCooldown = WAVE_COOLDOWN_DURATION;
+    currentWave++;
+    updateWaveDisplay();
+}
+
+// Hiển thị thông báo nổi khi clear wave
+function showWaveMessage(msg) {
+    const msgDiv = document.createElement('div');
+    msgDiv.textContent = msg;
+    msgDiv.style.position = 'absolute';
+    msgDiv.style.top = '80px';
+    msgDiv.style.left = '50%';
+    msgDiv.style.transform = 'translateX(-50%)';
+    msgDiv.style.fontFamily = 'Rajdhani, sans-serif';
+    msgDiv.style.fontSize = '20px';
+    msgDiv.style.fontWeight = 'bold';
+    msgDiv.style.color = 'gold';
+    msgDiv.style.textShadow = '0 0 5px black';
+    msgDiv.style.backgroundColor = 'rgba(0,0,0,0.7)';
+    msgDiv.style.padding = '8px 20px';
+    msgDiv.style.borderRadius = '20px';
+    msgDiv.style.zIndex = '200';
+    msgDiv.style.pointerEvents = 'none';
+    document.body.appendChild(msgDiv);
+    setTimeout(() => {
+        msgDiv.remove();
+    }, 2000);
+}
 
 // Spawn enemy
 function spawnEnemy() {
@@ -302,24 +372,20 @@ function spawnSafeZone() {
     );
 }
 
-let lastSpawnTime = 0;
-const spawnInterval = 3.0;
-
 // Enemy drop
 function handleEnemyDrop(enemy, position) {
     // Random ammo drop
-    const ammoAmount = Math.floor(0 + Math.random() * 10);
+    const ammoAmount = Math.floor(5 + Math.random() * 10);
     weaponManager.addReserveAmmo(ammoAmount);
 
     // Random coin drop
     let coinAmount = 0;
     if (enemy instanceof FastEnemy) {
-        coinAmount = Math.floor(5 + Math.random() * 6); // 5-10
+        coinAmount = Math.floor(5 + Math.random() * 6);
     } else if (enemy instanceof TankEnemy) {
-        coinAmount = Math.floor(10 + Math.random() * 6); // 10-15
+        coinAmount = Math.floor(10 + Math.random() * 6);
     }
     if (coinAmount > 0) {
-        // Tạo vật thể coin rơi
         const coinGeometry = new THREE.SphereGeometry(0.15, 8, 8);
         const coinMaterial = new THREE.MeshStandardMaterial({ color: 0xffcc00, emissive: 0x442200 });
         const coinItem = new THREE.Mesh(coinGeometry, coinMaterial);
@@ -329,7 +395,7 @@ function handleEnemyDrop(enemy, position) {
         droppedItems.push(coinItem);
     }
 
-    //Random weapon drop
+    // Random weapon drop
     const rand = Math.random() * 100;
     if (rand < 10) {
         const dropGeometry = new THREE.SphereGeometry(0.2, 8, 8);
@@ -358,7 +424,7 @@ function updateShopUI() {
     const reservePrice = upgradeManager.getNextPrice('reserve');
     const damagePrice = upgradeManager.getNextPrice('damage');
     const speedPrice = upgradeManager.getNextPrice('speed');
-    
+
     statsDiv.innerHTML = `
         <div>💰 Coin: ${coin}</div>
         <div>📦 Magazine: ${weaponManager.weapons.pistol.magazineSize} (+${upgradeManager.magazineBonus})</div>
@@ -366,7 +432,7 @@ function updateShopUI() {
         <div>💥 Damage: ${weaponManager.weapons.pistol.damage.toFixed(1)} (+${upgradeManager.damageBonus})</div>
         <div>⚡ Speed: ${(5.0 + upgradeManager.speedBonus).toFixed(1)} (+${upgradeManager.speedBonus})</div>
     `;
-    
+
     document.getElementById('shop-upgrade-mag').innerHTML = magPrice ? `+5 Magazine (${magPrice} Coin)` : 'MAX Magazine';
     document.getElementById('shop-upgrade-reserve').innerHTML = reservePrice ? `+30 Reserve (${reservePrice} Coin)` : 'MAX Reserve';
     document.getElementById('shop-upgrade-damage').innerHTML = damagePrice ? `+0.5 Damage (${damagePrice} Coin)` : 'MAX Damage';
@@ -479,18 +545,41 @@ function gameLoop() {
     const nowSec = now / 1000;
     const playerPos = playerController.getPosition();
 
-    const canSpawn = !currentSafeZone || !currentSafeZone.containsPoint(playerPos);
-    if (canSpawn && nowSec - lastSpawnTime > spawnInterval && enemies.length < 25) {
-        spawnEnemy();
-        lastSpawnTime = nowSec;
+    // ========== WAVE SYSTEM ==========
+    if (!waveActive) {
+        if (waveCooldown > 0) {
+            waveCooldown -= delta;
+            if (waveCooldown <= 0) {
+                waveActive = true;
+                enemiesToSpawn = calculateEnemiesToSpawn(currentWave);
+                waveSpawnTimer = 0;
+                showWaveMessage(`Wave ${currentWave} - Fight!`);
+            }
+        }
+    } else {
+        if (enemiesToSpawn > 0) {
+            if (waveSpawnTimer <= 0) {
+                spawnEnemy();
+                enemiesToSpawn--;
+                waveSpawnTimer = WAVE_SPAWN_INTERVAL;
+            } else {
+                waveSpawnTimer -= delta;
+            }
+        } else {
+            if (enemies.length === 0) {
+                finishWave();
+            }
+        }
     }
 
+    // Spawn safe zone định kỳ
     if (!currentSafeZone && gameStarted && nowSec > nextSafeZoneTime) {
         spawnSafeZone();
     }
 
     updateChunks(playerPos);
 
+    // Update enemies và sát thương
     for (let i = 0; i < enemies.length; i++) {
         enemies[i].update(delta, playerPos);
         const dx = playerPos.x - enemies[i].mesh.position.x;
@@ -508,7 +597,7 @@ function gameLoop() {
         }
     }
 
-    // Auto pickup items (coin, weapon)
+    // Auto pickup items
     for (let i = 0; i < droppedItems.length; i++) {
         const item = droppedItems[i];
         const dist = playerPos.distanceTo(item.position);
