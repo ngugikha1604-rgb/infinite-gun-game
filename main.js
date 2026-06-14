@@ -106,6 +106,11 @@ const WAVE_SPAWN_INTERVAL = 0.8;
 const WAVE_COOLDOWN_DURATION = 3;
 const WAVE_REWARD_BASE = 50;
 
+// Enemy buff per wave (nhân dồn, wave 1 là 1.0)
+const BUFF_HP_MULTIPLIER = 1.05;      // +5% mỗi wave
+const BUFF_DAMAGE_MULTIPLIER = 1.03;  // +3% mỗi wave
+const BUFF_SPEED_MULTIPLIER = 1.02;   // +2% mỗi wave
+
 // HUD elements
 const scoreValueEl = document.getElementById('score-value');
 const killFeedEl = document.getElementById('kill-feed');
@@ -129,7 +134,6 @@ let isPaused = false;
 let gameStarted = false;
 
 // Damage settings
-const ENEMY_DAMAGE_AMOUNT = 20;
 const ENEMY_DAMAGE_COOLDOWN = 0.9;
 const ENEMY_MELEE_RANGE = 1.4;
 
@@ -339,12 +343,22 @@ function spawnEnemy() {
         if (attempts > 20) break;
     } while (!safe);
     const groundY = terrainGen.getHeight(x, z) + 1.2;
+    
     let enemy;
     if (Math.random() < 0.5) {
         enemy = new FastEnemy(sceneManager.scene, new THREE.Vector3(x, groundY, z));
     } else {
         enemy = new TankEnemy(sceneManager.scene, new THREE.Vector3(x, groundY, z));
     }
+    
+    // Áp dụng buff theo wave (wave 1 không buff)
+    if (currentWave > 1) {
+        const multHp = Math.pow(BUFF_HP_MULTIPLIER, currentWave - 1);
+        const multDamage = Math.pow(BUFF_DAMAGE_MULTIPLIER, currentWave - 1);
+        const multSpeed = Math.pow(BUFF_SPEED_MULTIPLIER, currentWave - 1);
+        enemy.applyBuff(multHp, multDamage, multSpeed);
+    }
+    
     enemies.push(enemy);
 }
 
@@ -586,7 +600,7 @@ function gameLoop() {
         const dz = playerPos.z - enemies[i].mesh.position.z;
         const dist2D = Math.sqrt(dx * dx + dz * dz);
         if (dist2D < ENEMY_MELEE_RANGE && enemies[i].playerDamageCooldown <= 0) {
-            playerHp = Math.max(0, playerHp - ENEMY_DAMAGE_AMOUNT);
+            playerHp = Math.max(0, playerHp - enemies[i].damage);
             enemies[i].playerDamageCooldown = ENEMY_DAMAGE_COOLDOWN;
             updateHealthHUD();
             flashDamageVignette();

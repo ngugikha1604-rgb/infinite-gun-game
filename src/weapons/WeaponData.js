@@ -1,25 +1,23 @@
 import { Weapon } from './Weapon.js';
 
-// Súng lục
 export const PISTOL = new Weapon({
     name: 'Pistol',
-    damage: 1,
+    damage: 25,
     fireRate: 0.35,
     magazineSize: 12,
     reserveAmmo: 48,
     reloadTime: 1.2,
     color: 0xffaa44,
-    recoil: 0.045   // giật nhẹ
+    recoil: 0.045
 });
 
-// Súng trường
 export const RIFLE = new Weapon({
     name: 'Rifle',
-    damage: 2,
+    damage: 40,
     fireRate: 0.2,
     magazineSize: 30,
     reserveAmmo: 90,
     reloadTime: 2.0,
     color: 0x44aaff,
-    recoil: 0.07    // giật mạnh hơn
+    recoil: 0.07
 });
