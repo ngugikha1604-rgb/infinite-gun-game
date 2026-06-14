@@ -10,6 +10,7 @@ import { FastEnemy } from './src/entities/FastEnemy.js';
 import { TankEnemy } from './src/entities/TankEnemy.js';
 import { WeaponManager } from './src/weapons/WeaponManager.js';
 import { SafeZone } from './src/world/SafeZone.js';
+import { UpgradeManager } from './src/shop/UpgradeManager.js';
 
 // Khởi tạo core
 const sceneManager = new SceneManager();
@@ -33,6 +34,9 @@ const playerController = new PlayerController(
 
 // WeaponManager
 const weaponManager = new WeaponManager(playerController, ammoHudEl);
+
+// UpgradeManager
+const upgradeManager = new UpgradeManager();
 
 // Chunk management
 const chunks = new Map();
@@ -80,6 +84,7 @@ let enemies = [];
 let droppedItems = [];
 let score = 0;
 let coin = 0;
+let isShopOpen = false;          // <-- THÊM BIẾN CỜ
 const coinHudEl = document.getElementById('coin-hud');
 let lastAttackTime = 0;
 let currentSafeZone = null;
@@ -184,15 +189,51 @@ function resumeGame() {
     pauseMenuEl.classList.remove('visible');
 }
 
+// Sửa pointerlockchange: không pause khi shop đang mở
 document.addEventListener('pointerlockchange', () => {
     if (document.pointerLockElement !== sceneManager.renderer.domElement) {
-        if (gameStarted && !isGameOver) pauseGame();
+        if (gameStarted && !isGameOver && !isShopOpen) pauseGame();
     }
 });
 
 resumeBtnEl.addEventListener('click', () => {
     inputHandler.enableLock();
     resumeGame();
+});
+
+// Shop nâng cấp
+document.getElementById('shop-upgrade-mag').addEventListener('click', () => {
+    if (upgradeManager.upgrade('magazine', coin, (newCoin) => { coin = newCoin; coinHudEl.textContent = `Coin: ${coin}`; })) {
+        upgradeManager.applyToGame(playerController, weaponManager);
+        updateShopUI();
+    }
+});
+
+document.getElementById('shop-upgrade-reserve').addEventListener('click', () => {
+    if (upgradeManager.upgrade('reserve', coin, (newCoin) => { coin = newCoin; coinHudEl.textContent = `Coin: ${coin}`; })) {
+        upgradeManager.applyToGame(playerController, weaponManager);
+        updateShopUI();
+    }
+});
+
+document.getElementById('shop-upgrade-damage').addEventListener('click', () => {
+    if (upgradeManager.upgrade('damage', coin, (newCoin) => { coin = newCoin; coinHudEl.textContent = `Coin: ${coin}`; })) {
+        upgradeManager.applyToGame(playerController, weaponManager);
+        updateShopUI();
+    }
+});
+
+document.getElementById('shop-upgrade-speed').addEventListener('click', () => {
+    if (upgradeManager.upgrade('speed', coin, (newCoin) => { coin = newCoin; coinHudEl.textContent = `Coin: ${coin}`; })) {
+        upgradeManager.applyToGame(playerController, weaponManager);
+        updateShopUI();
+    }
+});
+
+document.getElementById('shop-close').addEventListener('click', () => {
+    isShopOpen = false;
+    document.getElementById('shop-menu').style.display = 'none';
+    inputHandler.enableLock();
 });
 
 // Start game
@@ -267,7 +308,7 @@ const spawnInterval = 3.0;
 // Enemy drop
 function handleEnemyDrop(enemy, position) {
     // Random ammo drop
-    const ammoAmount = Math.floor(5 + Math.random() * 10);
+    const ammoAmount = Math.floor(0 + Math.random() * 10);
     weaponManager.addReserveAmmo(ammoAmount);
 
     // Random coin drop
@@ -309,8 +350,32 @@ function handleEnemyDrop(enemy, position) {
     }
 }
 
+// Shop
+function updateShopUI() {
+    const statsDiv = document.getElementById('shop-stats');
+    if (!statsDiv) return;
+    const magPrice = upgradeManager.getNextPrice('magazine');
+    const reservePrice = upgradeManager.getNextPrice('reserve');
+    const damagePrice = upgradeManager.getNextPrice('damage');
+    const speedPrice = upgradeManager.getNextPrice('speed');
+    
+    statsDiv.innerHTML = `
+        <div>💰 Coin: ${coin}</div>
+        <div>📦 Magazine: ${weaponManager.weapons.pistol.magazineSize} (+${upgradeManager.magazineBonus})</div>
+        <div>🔋 Reserve: ${weaponManager.weapons.pistol.reserveAmmo} (+${upgradeManager.reserveBonus})</div>
+        <div>💥 Damage: ${weaponManager.weapons.pistol.damage.toFixed(1)} (+${upgradeManager.damageBonus})</div>
+        <div>⚡ Speed: ${(5.0 + upgradeManager.speedBonus).toFixed(1)} (+${upgradeManager.speedBonus})</div>
+    `;
+    
+    document.getElementById('shop-upgrade-mag').innerHTML = magPrice ? `+5 Magazine (${magPrice} Coin)` : 'MAX Magazine';
+    document.getElementById('shop-upgrade-reserve').innerHTML = reservePrice ? `+30 Reserve (${reservePrice} Coin)` : 'MAX Reserve';
+    document.getElementById('shop-upgrade-damage').innerHTML = damagePrice ? `+0.5 Damage (${damagePrice} Coin)` : 'MAX Damage';
+    document.getElementById('shop-upgrade-speed').innerHTML = speedPrice ? `+0.3 Speed (${speedPrice} Coin)` : 'MAX Speed';
+}
+
 // Shooting (left click)
 window.addEventListener('click', (event) => {
+    if (isShopOpen) return;
     if (event.button !== 0) return;
     if (isPaused || isGameOver || !gameStarted) return;
     const shootResult = weaponManager.shoot();
@@ -360,38 +425,25 @@ window.addEventListener('click', (event) => {
     }
 });
 
-// ===================== ADS với mouseup (fix pointer lock) =====================
+// ADS
 window.addEventListener('mouseup', (e) => {
-    if (e.button !== 2) return; // chỉ chuột phải
+    if (isShopOpen) return;
+    if (e.button !== 2) return;
     e.preventDefault();
     e.stopPropagation();
 
-    console.log('=== RIGHT MOUSE UP (ADS) ===');
-    if (!gameStarted || isPaused || isGameOver) {
-        console.log('Blocked by game state');
-        return;
-    }
-
+    if (!gameStarted || isPaused || isGameOver) return;
     const currentWeapon = weaponManager.getCurrentWeapon();
-    console.log('Current weapon:', currentWeapon);
     if (currentWeapon && currentWeapon.name === 'Rifle') {
         isAiming = !isAiming;
-        console.log('Toggling ADS to:', isAiming);
         playerController.setAiming(isAiming);
         const crosshair = document.getElementById('crosshair');
-        if (isAiming) {
-            crosshair.classList.add('ads');
-        } else {
-            crosshair.classList.remove('ads');
-        }
-    } else {
-        console.log('Not Rifle or null, weapon name:', currentWeapon?.name);
+        if (isAiming) crosshair.classList.add('ads');
+        else crosshair.classList.remove('ads');
     }
 });
 
-// Prevent default context menu entirely
 window.addEventListener('contextmenu', (e) => e.preventDefault());
-// ===================================================================
 
 // Game loop
 let lastFrameTime = performance.now();
@@ -482,17 +534,41 @@ function gameLoop() {
 // Key bindings
 window.addEventListener('keydown', (e) => {
     if (!gameStarted || isPaused || isGameOver) return;
+
+    // Phím B: mở/đóng shop
+    if (e.code === 'KeyB') {
+        e.preventDefault();
+        if (isShopOpen) {
+            isShopOpen = false;
+            document.getElementById('shop-menu').style.display = 'none';
+            inputHandler.enableLock();
+        } else {
+            isShopOpen = true;
+            document.getElementById('shop-menu').style.display = 'block';
+            updateShopUI();
+            inputHandler.disableLock();
+        }
+        return;
+    }
+
+    // Nếu shop đang mở: chặn các phím hành động, cho phép WASD/Space
+    if (isShopOpen) {
+        if (e.code === 'Digit1' || e.code === 'Digit2' || e.code === 'KeyR' || e.code === 'KeyH') {
+            e.preventDefault();
+        }
+        return;
+    }
+
+    // Khi shop đóng, xử lý phím bình thường
     if (e.code === 'Digit1' && weaponManager.inventory.length >= 1) weaponManager.switchToWeapon(0);
     else if (e.code === 'Digit2' && weaponManager.inventory.length >= 2) weaponManager.switchToWeapon(1);
     else if (e.code === 'KeyR') weaponManager.startReload();
-    else if (e.code == 'KeyH') {
-        if (playerHp < PLAYER_MAX_HP && coin >= 50){
+    else if (e.code === 'KeyH') {
+        if (playerHp < PLAYER_MAX_HP && coin >= 50) {
             playerHp = Math.min(PLAYER_MAX_HP, playerHp + 20);
             coin -= 50;
             coinHudEl.textContent = `Coin: ${coin}`;
             updateHealthHUD();
-        } else{
-            console.log('Not enough coins to heal or already at max HP');
         }
     }
 });

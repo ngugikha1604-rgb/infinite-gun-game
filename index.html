@@ -642,6 +642,37 @@
         </div>
     </div>
 
+    <!-- Shop Menu -->
+    <div id="shop-menu" style="display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 400px; background: rgba(0,0,0,0.95); border: 2px solid gold; border-radius: 20px; padding: 20px; z-index: 500; font-family: 'Rajdhani', sans-serif; color: white; text-align: center; backdrop-filter: blur(10px);">
+        <h2 style="color: gold; margin-bottom: 15px;">🛒 SHOP</h2>
+        <div id="shop-stats" style="margin-bottom: 20px; text-align: left; font-size: 14px;">
+            <!-- Thông tin sẽ được cập nhật bằng JS -->
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+            <button id="shop-upgrade-mag" class="shop-btn">+5 Magazine (100 Coin)</button>
+            <button id="shop-upgrade-reserve" class="shop-btn">+30 Reserve (70 Coin)</button>
+            <button id="shop-upgrade-damage" class="shop-btn">+0.5 Damage (150 Coin)</button>
+            <button id="shop-upgrade-speed" class="shop-btn">+0.3 Speed (100 Coin)</button>
+        </div>
+        <button id="shop-close" style="margin-top: 20px; background: #cc2222; border: none; color: white; padding: 8px 16px; border-radius: 8px; cursor: pointer;">Close (B)</button>
+    </div>
+
+    <style>
+    .shop-btn {
+        background: #1a6acc;
+        border: none;
+        color: white;
+        padding: 8px;
+        border-radius: 8px;
+        cursor: pointer;
+        font-family: inherit;
+        font-weight: bold;
+        transition: 0.1s;
+    }
+    .shop-btn:hover { background: #0d3f88; transform: scale(1.02); }
+    #shop-close:hover { background: #aa1111; }
+    </style>
+
     <!-- Three.js import map -->
     <script type="importmap">
         {
