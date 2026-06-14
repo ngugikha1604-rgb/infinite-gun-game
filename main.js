@@ -79,6 +79,8 @@ function updateChunks(playerPos) {
 let enemies = [];
 let droppedItems = [];
 let score = 0;
+let coin = 0;
+const coinHudEl = document.getElementById('coin-hud');
 let lastAttackTime = 0;
 let currentSafeZone = null;
 let isAiming = false;
@@ -264,8 +266,29 @@ const spawnInterval = 3.0;
 
 // Enemy drop
 function handleEnemyDrop(enemy, position) {
+    // Random ammo drop
     const ammoAmount = Math.floor(5 + Math.random() * 10);
     weaponManager.addReserveAmmo(ammoAmount);
+
+    // Random coin drop
+    let coinAmount = 0;
+    if (enemy instanceof FastEnemy) {
+        coinAmount = Math.floor(5 + Math.random() * 6); // 5-10
+    } else if (enemy instanceof TankEnemy) {
+        coinAmount = Math.floor(10 + Math.random() * 6); // 10-15
+    }
+    if (coinAmount > 0) {
+        // Tạo vật thể coin rơi
+        const coinGeometry = new THREE.SphereGeometry(0.15, 8, 8);
+        const coinMaterial = new THREE.MeshStandardMaterial({ color: 0xffcc00, emissive: 0x442200 });
+        const coinItem = new THREE.Mesh(coinGeometry, coinMaterial);
+        coinItem.position.copy(position);
+        coinItem.userData = { type: 'coin', amount: coinAmount };
+        sceneManager.scene.add(coinItem);
+        droppedItems.push(coinItem);
+    }
+
+    //Random weapon drop
     const rand = Math.random() * 100;
     if (rand < 10) {
         const dropGeometry = new THREE.SphereGeometry(0.2, 8, 8);
@@ -433,15 +456,20 @@ function gameLoop() {
         }
     }
 
-    // Auto pickup items
+    // Auto pickup items (coin, weapon)
     for (let i = 0; i < droppedItems.length; i++) {
         const item = droppedItems[i];
         const dist = playerPos.distanceTo(item.position);
         if (dist < 1.5) {
-            weaponManager.addWeapon(item.userData.weaponName);
+            if (item.userData.type === 'coin') {
+                coin += item.userData.amount;
+                coinHudEl.textContent = `Coin: ${coin}`;
+            } else if (item.userData.type === 'weapon') {
+                weaponManager.addWeapon(item.userData.weaponName);
+            }
             sceneManager.scene.remove(item);
-            item.geometry.dispose();
-            item.material.dispose();
+            if (item.geometry) item.geometry.dispose();
+            if (item.material) item.material.dispose();
             droppedItems.splice(i, 1);
             i--;
         }
@@ -457,6 +485,16 @@ window.addEventListener('keydown', (e) => {
     if (e.code === 'Digit1' && weaponManager.inventory.length >= 1) weaponManager.switchToWeapon(0);
     else if (e.code === 'Digit2' && weaponManager.inventory.length >= 2) weaponManager.switchToWeapon(1);
     else if (e.code === 'KeyR') weaponManager.startReload();
+    else if (e.code == 'KeyH') {
+        if (playerHp < PLAYER_MAX_HP && coin >= 50){
+            playerHp = Math.min(PLAYER_MAX_HP, playerHp + 20);
+            coin -= 50;
+            coinHudEl.textContent = `Coin: ${coin}`;
+            updateHealthHUD();
+        } else{
+            console.log('Not enough coins to heal or already at max HP');
+        }
+    }
 });
 
 window.addEventListener('resize', () => sceneManager.onWindowResize());

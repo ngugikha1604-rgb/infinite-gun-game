@@ -556,6 +556,11 @@
         No weapon
     </div>
 
+    <!-- Coin HUD -->
+    <div id="coin-hud" style="position: absolute; bottom: 60px; right: 24px; font-family: 'Orbitron', monospace; font-size: 18px; color: gold; text-shadow: 0 0 5px black; background: rgba(0,0,0,0.5); padding: 4px 10px; border-radius: 8px; pointer-events: none; z-index: 100;">
+        Coin: 0
+    </div>
+
     <!-- Health Bar (bottom left) -->
     <div id="health-wrapper">
         <span class="hp-label">HP</span>
@@ -605,16 +610,32 @@
                     <span>Nhảy</span>
                 </div>
                 <div class="start-ctrl-row">
+                    <span class="ctrl-key">R</span>
+                    <span>Reload đạn</span>
+                </div>
+                <div class="start-ctrl-row">
+                    <span class="ctrl-key">H</span>
+                    <span>Hồi máu (tốn 50 Coin)</span>
+                </div>
+                <div class="start-ctrl-row">
                     <svg width="13" height="17" viewBox="0 0 14 18" fill="none" style="opacity:0.6;flex-shrink:0">
                         <rect x="1" y="1" width="12" height="16" rx="6" stroke="rgba(255,255,255,0.8)" stroke-width="1.5"/>
                         <line x1="7" y1="1" x2="7" y2="8" stroke="rgba(255,255,255,0.8)" stroke-width="1.5"/>
                         <circle cx="7" cy="10" r="1.5" fill="rgba(255,100,100,0.9)"/>
                     </svg>
-                    <span>Click chuột để bắn</span>
+                    <span>Click chuột trái = Bắn</span>
+                </div>
+                <div class="start-ctrl-row">
+                    <svg width="13" height="17" viewBox="0 0 14 18" fill="none" style="opacity:0.6;flex-shrink:0">
+                        <rect x="1" y="1" width="12" height="16" rx="6" stroke="rgba(255,255,255,0.8)" stroke-width="1.5"/>
+                        <line x1="7" y1="1" x2="7" y2="8" stroke="rgba(255,255,255,0.8)" stroke-width="1.5"/>
+                        <circle cx="7" cy="10" r="1.5" fill="rgba(255,100,100,0.9)"/>
+                    </svg>
+                    <span>Click chuột phải = Ngắm (Rifle)</span>
                 </div>
                 <div class="start-ctrl-row" style="color:rgba(255,200,100,0.6)">
-                    <span style="font-size:15px">&#9888;</span>
-                    <span>Tối đa 5 lần bị chạm &rarr; Game Over</span>
+                    <span style="font-size:15px">💰</span>
+                    <span>Enemy rơi Coin → Dùng H để hồi máu</span>
                 </div>
             </div>
             <button id="start-btn">▶&nbsp; BắT ĐẦU</button>

@@ -7,5 +7,6 @@ export class Weapon {
         this.reserveAmmo = config.reserveAmmo;
         this.reloadTime = config.reloadTime;
         this.color = config.color;             // for dropped item
+        this.recoil = config.recoil;             // recoil intensity
     }
 }
