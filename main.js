@@ -279,7 +279,7 @@ startBtnEl.addEventListener('click', startGame);
 
 // Calculator số enemy cần spawn theo wave
 function calculateEnemiesToSpawn(wave) {
-    return 3 + Math.floor(wave / 2);
+    return 100 + Math.floor(wave / 2);
 }
 
 // Cập nhật hiển thị wave
