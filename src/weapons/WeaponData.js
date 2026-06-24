@@ -2,11 +2,11 @@ import { Weapon } from './Weapon.js';
 
 export const PISTOL = new Weapon({
     name: 'Pistol',
-    damage: 25,
-    fireRate: 0.35,
-    magazineSize: 12,
-    reserveAmmo: 48,
-    reloadTime: 1.2,
+    damage: 100,
+    fireRate: 0.01,
+    magazineSize: 10000000000000000000000,
+    reserveAmmo: 100000000000000000000,
+    reloadTime: 0.1,
     color: 0xffaa44,
     recoil: 0.045
 });
